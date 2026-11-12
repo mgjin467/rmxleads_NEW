@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ready-Mix Leads Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+:root {
+  --bg:#0f172a; --panel:#1e293b; --panel2:#243044; --text:#e2e8f0;
+  --muted:#94a3b8; --accent:#38bdf8; --green:#86efac; --yellow:#fde68a;
+  --red:#fca5a5; --border:#334155; --row:#172033;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
+
+/* ── Header ── */
+header {
+  padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap; height:52px;
+}
+header h1 { font-size:17px; font-weight:700; white-space:nowrap; }
+.pills { display:flex; gap:6px; flex-wrap:wrap; flex:1; }
+.pill { font-size:11px; padding:3px 8px; border-radius:999px; background:#0b1220; color:var(--muted); border:1px solid var(--border); }
+.pill.ok  { color:var(--green);  border-color:#14532d; background:#052e16; }
+.pill.warn{ color:var(--yellow); border-color:#854d0e; background:#3f2a05; }
+.header-btns { display:flex; gap:8px; }
+.btn { padding:6px 14px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; }
+.btn-primary { background:var(--accent); color:#0f172a; }
+.btn-primary:hover { background:#7dd3fc; }
+.btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+.btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-ghost:hover { color:var(--text); border-color:var(--muted); }
+.run-status { font-size:12px; color:var(--muted); white-space:nowrap; }
+
+/* ── Layout ── */
+.layout { display:grid; grid-template-columns:1fr 1fr; height:calc(100vh - 52px); }
+#map { height:100%; }
+.right-panel { display:flex; flex-direction:column; border-left:1px solid var(--border); min-height:0; }
+
+/* ── Table panel ── */
+.toolbar { padding:8px 12px; display:flex; gap:8px; align-items:center; background:var(--panel); border-bottom:1px solid var(--border); }
+.toolbar input { flex:1; background:#0b1220; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 10px; outline:none; font-size:13px; }
+.toolbar input:focus { border-color:var(--accent); }
+.count { font-size:12px; color:var(--muted); white-space:nowrap; }
+.table-wrap { overflow:auto; flex:1; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th,td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+th { position:sticky; top:0; background:var(--panel); cursor:pointer; font-weight:600; user-select:none; }
+th:hover { color:var(--accent); }
+tbody tr { background:var(--row); }
+tbody tr:hover { background:#22304a; cursor:pointer; }
+td.title { white-space:normal; min-width:200px; max-width:280px; }
+td.score { font-weight:700; color:var(--green); }
+td a { color:var(--accent); text-decoration:none; }
+td a:hover { text-decoration:underline; }
+.empty { padding:30px; color:var(--muted); text-align:center; }
+.err-bar { padding:8px 14px; background:#3f1d1d; color:var(--red); font-size:12px; border-bottom:1px solid #7f1d1d; }
+
+/* ── Settings Drawer ── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:199; }
+.overlay.open { display:block; }
+.drawer {
+  position:fixed; top:0; right:-440px; width:420px; height:100vh;
+  background:var(--panel); border-left:1px solid var(--border);
+  z-index:200; transition:right .25s ease; overflow-y:auto; display:flex; flex-direction:column;
+}
+.drawer.open { right:0; }
+.drawer-header {
+  padding:14px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--panel); z-index:1;
+}
+.drawer-header h2 { font-size:16px; font-weight:700; }
+.close-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; }
+.close-btn:hover { color:var(--text); }
+.drawer-body { padding:16px; display:flex; flex-direction:column; gap:20px; flex:1; }
+.drawer-footer { padding:14px 16px; border-top:1px solid var(--border); display:flex; gap:8px; position:sticky; bottom:0; background:var(--panel); }
+.drawer-footer .btn { flex:1; padding:10px; }
+
+/* ── Settings sections ── */
+.setting-section h3 { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
+.input-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.input-group { display:flex; flex-direction:column; gap:4px; }
+.input-group label { font-size:12px; color:var(--muted); }
+.input-group input[type=number], .input-group input[type=text] {
+  background:#0b1220; color:var(--text); border:1px solid var(--border);
+  border-radius:6px; padding:7px 10px; outline:none; font-size:13px; width:100%;
+}
+.input-group input:focus { border-color:var(--accent); }
+
+/* ── Keyword chips ── */
+.kw-section { display:flex; flex-direction:column; gap:8px; }
+.kw-mode { display:flex; gap:6px; }
+.mode-btn {
+  padding:4px 12px; border-radius:999px; border:1px solid var(--border);
+  background:#0b1220; color:var(--muted); cursor:pointer; font-size:12px; font-weight:600;
+}
+.mode-btn.active { background:var(--accent); color:#0f172a; border-color:var(--accent); }
+.chips-wrap {
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  background:#0b1220; border:1px solid var(--border); border-radius:6px; padding:6px 8px; min-height:38px;
+}
+.chips-wrap:focus-within { border-color:var(--accent); }
+.chip {
+  display:flex; align-items:center; gap:4px;
+  background:var(--panel2); color:var(--text); border-radius:999px;
+  padding:3px 8px; font-size:12px;
+}
+.chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; padding:0; }
+.chip button:hover { color:var(--red); }
+.chip-input { background:none; border:none; color:var(--text); outline:none; font-size:13px; min-width:80px; flex:1; }
+.kw-hint { font-size:11px; color:var(--muted); }
+
+/* ── Run progress ── */
+.progress-bar { height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--accent); width:0; transition:width .3s; }
+.progress-fill.indeterminate { width:40%; animation:slide 1.5s infinite; }
+@keyframes slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(300%)} }
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr; height:auto;}
+  #map{height:50vh;}
+  .drawer{width:100%; right:-100%;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ready-Mix Leads</h1>
+  <div class="pills" id="status-pills"></div>
+  <div class="header-btns">
+    <span class="run-status" id="run-status"></span>
+    <button class="btn btn-primary" id="run-btn" onclick="runPipeline()">지금 수집</button>
+    <button class="btn btn-ghost" onclick="openSettings()">⚙ 설정</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div id="map"></div>
+  <div class="right-panel">
+    <div class="toolbar">
+      <input id="search" placeholder="제목·기관·주소 검색…" />
+      <span class="count" id="count">0건</span>
+    </div>
+    <div id="err-bar"></div>
+    <div class="table-wrap">
+      <table id="leads-table">
+        <thead><tr id="thead-row"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none;">리드가 없습니다. 설정 확인 후 「지금 수집」을 눌러주세요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay" onclick="closeSettings()"></div>
+
+<!-- Settings Drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <h2>⚙ 설정</h2>
+    <button class="close-btn" onclick="closeSettings()">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <!-- 공장 위치 -->
+    <div class="setting-section">
+      <h3>공장 위치</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>위도 (Lat)</label>
+          <input type="number" id="s-lat" step="0.0001" placeholder="36.9921">
+        </div>
+        <div class="input-group">
+          <label>경도 (Lon)</label>
+          <input type="number" id="s-lon" step="0.0001" placeholder="127.4412">
+        </div>
+      </div>
+      <div class="input-group" style="margin-top:8px">
+        <label>검색 반경 (km)</label>
+        <input type="number" id="s-radius" step="1" min="1" max="200" placeholder="25">
+      </div>
+    </div>
+
+    <!-- 수집 기간 -->
+    <div class="setting-section">
+      <h3>수집 기간</h3>
+      <div class="input-group">
+        <label>최근 몇 일치 수집</label>
+        <input type="number" id="s-days" step="1" min="1" max="90" placeholder="30">
+      </div>
+    </div>
+
+    <!-- 지역 키워드 -->
+    <div class="setting-section">
+      <h3>지역 키워드</h3>
+      <div class="kw-section">
+        <div class="kw-mode">
+          <button class="mode-btn" id="region-or"  onclick="setMode('region','OR')">OR (하나라도)</button>
+          <button class="mode-btn" id="region-and" onclick="setMode('region','AND')">AND (모두포함)</button>
+        </div>
+        <div class="chips-wrap" id="region-chips" onclick="document.getElementById('region-input').focus()">
+          <input class="chip-input" id="region-input" placeholder="키워드 입력 후 Enter">
+        </div>
+        <span class="kw-hint">예: 진천 / 음성 / 청주 — 공고 제목·기관명에서 매칭</span>
+      </div>
+    </div>
+
+    <!-- 검색 키워드 -->
+    <div class="setting-section">
+      <h3>검색 키워드 (공고 제목)</h3>
+      <div class="kw-section">
+        <div class="kw-mode">
+          <button class="mode-btn" id="content-or"  onclick="setMode('content','OR')">OR (하나라도)</button>
+          <button class="mode-btn" id="content-and" onclick="setMode('content','AND')">AND (모두포함)</button>
+        </div>
+        <div class="chips-wrap" id="content-chips" onclick="document.getElementById('content-input').focus()">
+          <input class="chip-input" id="content-input" placeholder="키워드 입력 후 Enter">
+        </div>
+        <span class="kw-hint">비워두면 모든 공사 공고 수집. 예: 레미콘 / 콘크리트</span>
+      </div>
+    </div>
+
+    <!-- 진행 상태 -->
+    <div class="setting-section" id="run-section" style="display:none">
+      <h3>수집 진행 상태</h3>
+      <div class="progress-bar"><div class="progress-fill indeterminate" id="progress"></div></div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted)" id="run-msg"></p>
+    </div>
+
+  </div>
+  <div class="drawer-footer">
+    <button class="btn btn-ghost" onclick="closeSettings()">닫기</button>
+    <button class="btn btn-primary" onclick="saveSettings()">저장 및 적용</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allLeads = [];
+let sortKey = "score", sortDir = -1;
+let markers = null;
+let plant = { lat: {{ plant_lat }}, lon: {{ plant_lon }}, radius_km: {{ radius_km }} };
+let plantValid = !!(plant.lat && plant.lon);
+let settings = {};
+let regionKws = [], contentKws = [];
+let regionMode = "OR", contentMode = "OR";
+let pollTimer = null;
+
+// ── Map ────────────────────────────────────────────────────────────────────
+const map = L.map("map").setView(plantValid ? [plant.lat, plant.lon] : [36.5, 127.8], plantValid ? 11 : 7);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"© OpenStreetMap" }).addTo(map);
+let radiusCircle = null, plantMarker = null;
+function updateMapPlant(lat, lon, radius) {
+  if (plantMarker) plantMarker.remove();
+  if (radiusCircle) radiusCircle.remove();
+  if (!lat || !lon) return;
+  plantMarker = L.marker([lat,lon]).addTo(map).bindPopup("공장");
+  radiusCircle = L.circle([lat,lon], { radius:radius*1000, color:"#38bdf8", fillOpacity:0.05, weight:2 }).addTo(map);
+}
+updateMapPlant(plant.lat, plant.lon, plant.radius_km);
+markers = L.markerClusterGroup();
+map.addLayer(markers);
+
+// ── Columns ────────────────────────────────────────────────────────────────
+const COLS = [
+  { key:"score",       label:"점수",    numeric:true },
+  { key:"제목",        label:"제목" },
+  { key:"source",      label:"소스" },
+  { key:"기관/사업자", label:"기관" },
+  { key:"단계",        label:"단계" },
+  { key:"주요일자",    label:"마감일" },
+  { key:"distance_km", label:"거리km",  numeric:true },
+  { key:"est_m3",      label:"예상m³",  numeric:true },
+  { key:"주소",        label:"주소" },
+  { key:"링크",        label:"링크",    link:true },
+];
+
+// ── Table ──────────────────────────────────────────────────────────────────
+function renderHead() {
+  const tr = document.getElementById("thead-row");
+  tr.innerHTML = "";
+  COLS.forEach(c => {
+    const th = document.createElement("th");
+    th.textContent = c.label + (sortKey===c.key ? (sortDir>0?" ▲":" ▼") : "");
+    th.onclick = () => { if(sortKey===c.key) sortDir=-sortDir; else { sortKey=c.key; sortDir=c.numeric?-1:1; } render(); };
+    tr.appendChild(th);
+  });
+}
+function filterRows() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  if (!q) return allLeads.slice();
+  return allLeads.filter(r => Object.values(r).some(v => String(v??"").toLowerCase().includes(q)));
+}
+function sortRows(rows) {
+  return rows.sort((a,b) => {
+    const av=a[sortKey], bv=b[sortKey];
+    const an=parseFloat(av), bn=parseFloat(bv);
+    if (!isNaN(an)&&!isNaN(bn)) return (an-bn)*sortDir;
+    return String(av??"").localeCompare(String(bv??""))*sortDir;
+  });
+}
+function render() {
+  renderHead();
+  const rows = sortRows(filterRows());
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  markers.clearLayers();
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    COLS.forEach(c => {
+      const td = document.createElement("td");
+      if (c.link && r[c.key]) {
+        const a = document.createElement("a");
+        a.href=r[c.key]; a.target="_blank"; a.rel="noopener"; a.textContent="열기";
+        td.appendChild(a);
+      } else { td.textContent = r[c.key]??""; }
+      if (c.key==="제목") td.className="title";
+      if (c.key==="score") td.className="score";
+      tr.appendChild(td);
+    });
+    tr.onclick = () => {
+      const lat=parseFloat(r.lat), lon=parseFloat(r.lon);
+      if (!isNaN(lat)&&!isNaN(lon)) map.setView([lat,lon],14);
+    };
+    tbody.appendChild(tr);
+    const lat=parseFloat(r.lat), lon=parseFloat(r.lon);
+    if (!isNaN(lat)&&!isNaN(lon)) {
+      L.marker([lat,lon]).bindPopup(
+        `<b>${esc(r["제목"]||"")}</b><br>${esc(r["기관/사업자"]||"")}<br>`+
+        `점수 ${r.score||""} · ${r.distance_km||""}km<br>`+
+        (r["링크"]?`<a href="${r["링크"]}" target="_blank" rel="noopener">상세보기</a>`:"")
+      ).addTo(markers);
+    }
+  });
+  document.getElementById("count").textContent = rows.length+"건";
+  document.getElementById("empty").style.display = rows.length?"none":"block";
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// ── Status pills ───────────────────────────────────────────────────────────
+function renderStatus(cfg, err) {
+  const wrap = document.getElementById("status-pills");
+  wrap.innerHTML = "";
+  const add = (text,cls) => {
+    const s=document.createElement("span"); s.className="pill "+(cls||""); s.textContent=text; wrap.appendChild(s);
+  };
+  add(`공장 ${plant.lat},${plant.lon} · ${plant.radius_km}km`);
+  add(`나라장터 키 ${cfg.has_nara_key?"✓":"✗"}`, cfg.has_nara_key?"ok":"warn");
+  add(`카카오 키 ${cfg.has_kakao_key?"✓":"✗"}`, cfg.has_kakao_key?"ok":"warn");
+  add(`Google 연동 ${cfg.has_service_account?"✓":"✗"}`, cfg.has_service_account?"ok":"warn");
+  if (err) document.getElementById("err-bar").innerHTML=`<div class="err-bar">시트 오류: ${esc(err)}</div>`;
+}
+
+// ── Load data ──────────────────────────────────────────────────────────────
+async function load() {
+  const [leadsRes, cfgRes] = await Promise.all([
+    fetch("/api/leads").then(r=>r.json()),
+    fetch("/api/config").then(r=>r.json()),
+  ]);
+  allLeads = leadsRes.leads || [];
+  if (leadsRes.plant) {
+    plant = leadsRes.plant;
+    updateMapPlant(plant.lat, plant.lon, plant.radius_km);
+  }
+  renderStatus(cfgRes, leadsRes.error);
+  render();
+}
+
+// ── Settings drawer ────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("overlay").classList.add("open");
+}
+function closeSettings() {
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("overlay").classList.remove("open");
+}
+
+function setMode(type, mode) {
+  if (type==="region") {
+    regionMode = mode;
+    document.getElementById("region-or").classList.toggle("active", mode==="OR");
+    document.getElementById("region-and").classList.toggle("active", mode==="AND");
+  } else {
+    contentMode = mode;
+    document.getElementById("content-or").classList.toggle("active", mode==="OR");
+    document.getElementById("content-and").classList.toggle("active", mode==="AND");
+  }
+}
+
+function addChip(type, kw) {
+  kw = kw.trim();
+  if (!kw) return;
+  const arr = type==="region" ? regionKws : contentKws;
+  if (arr.includes(kw)) return;
+  arr.push(kw);
+  renderChips(type);
+}
+function removeChip(type, kw) {
+  if (type==="region") regionKws = regionKws.filter(k=>k!==kw);
+  else contentKws = contentKws.filter(k=>k!==kw);
+  renderChips(type);
+}
+function renderChips(type) {
+  const arr = type==="region" ? regionKws : contentKws;
+  const inputId = type==="region" ? "region-input" : "content-input";
+  const wrap = document.getElementById(type+"-chips");
+  // Remove old chips (keep the input)
+  Array.from(wrap.querySelectorAll(".chip")).forEach(c=>c.remove());
+  const input = document.getElementById(inputId);
+  arr.forEach(kw => {
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.innerHTML = `<span>${esc(kw)}</span><button type="button" onclick="removeChip('${type}','${kw}')" title="삭제">×</button>`;
+    wrap.insertBefore(chip, input);
+  });
+}
+function setupChipInput(type) {
+  const inputId = type==="region" ? "region-input" : "content-input";
+  document.getElementById(inputId).addEventListener("keydown", e => {
+    if (e.key==="Enter"||e.key===","||e.key===" ") {
+      e.preventDefault();
+      addChip(type, e.target.value);
+      e.target.value = "";
+    } else if (e.key==="Backspace" && !e.target.value) {
+      const arr = type==="region" ? regionKws : contentKws;
+      if (arr.length) { arr.pop(); renderChips(type); }
+    }
+  });
+}
+
+async function loadSettings() {
+  const s = await fetch("/api/settings").then(r=>r.json());
+  settings = s;
+  document.getElementById("s-lat").value    = s.plant_lat;
+  document.getElementById("s-lon").value    = s.plant_lon;
+  document.getElementById("s-radius").value = s.search_radius_km;
+  document.getElementById("s-days").value   = s.days_back;
+  regionKws   = [...(s.region_keywords||[])];
+  contentKws  = [...(s.content_keywords||[])];
+  regionMode  = s.region_mode||"OR";
+  contentMode = s.content_mode||"OR";
+  renderChips("region");
+  renderChips("content");
+  setMode("region",  regionMode);
+  setMode("content", contentMode);
+}
+
+async function saveSettings() {
+  const body = {
+    plant_lat:         parseFloat(document.getElementById("s-lat").value)||plant.lat,
+    plant_lon:         parseFloat(document.getElementById("s-lon").value)||plant.lon,
+    search_radius_km:  parseFloat(document.getElementById("s-radius").value)||25,
+    days_back:         parseInt(document.getElementById("s-days").value)||30,
+    region_keywords:   [...regionKws],
+    region_mode:       regionMode,
+    content_keywords:  [...contentKws],
+    content_mode:      contentMode,
+  };
+  await fetch("/api/settings", { method:"POST", body:JSON.stringify(body), headers:{"Content-Type":"application/json"} });
+  closeSettings();
+  await load();
+}
+
+// ── Run pipeline ───────────────────────────────────────────────────────────
+async function runPipeline() {
+  const btn = document.getElementById("run-btn");
+  btn.disabled = true;
+  document.getElementById("run-section").style.display = "block";
+  document.getElementById("progress").className = "progress-fill indeterminate";
+  openSettings();
+
+  await fetch("/api/run", { method:"POST" });
+  pollStatus();
+}
+
+function pollStatus() {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    const s = await fetch("/api/status").then(r=>r.json());
+    document.getElementById("run-msg").textContent = s.msg;
+    document.getElementById("run-status").textContent = s.running ? "⏳ "+s.msg : "";
+    if (s.running) {
+      pollStatus();
+    } else {
+      document.getElementById("run-btn").disabled = false;
+      document.getElementById("progress").className = "progress-fill";
+      document.getElementById("progress").style.width = "100%";
+      setTimeout(()=>{ document.getElementById("progress").style.width="0"; }, 1500);
+      await load();
+    }
+  }, 2000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.getElementById("search").addEventListener("input", render);
+setupChipInput("region");
+setupChipInput("content");
+loadSettings();
+load();
+</script>
+</body>
+</html>

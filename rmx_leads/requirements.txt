@@ -1,0 +1,9 @@
+requests
+pandas
+python-dotenv
+gspread
+google-auth
+bs4
+lxml
+tenacity
+folium
