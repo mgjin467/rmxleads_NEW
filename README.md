@@ -1,4 +1,10 @@
-# ReadyMix Leads — Vercel Flask Dashboard
+# RMX Leads — Vercel Flask native deployment
 
-진입점: `api/index.py`; 모든 경로는 `vercel.json` rewrites로 연결합니다.
-배포 방법은 `VERCEL_DEPLOY.md`를 참조하세요.
+This package removes all wildcard rewrites and uses Vercel automatic Flask detection.
+
+- For Vercel Root Directory `./`: use top-level `app.py`.
+- For Vercel Root Directory `rmx_leads`: use `rmx_leads/app.py`.
+- Set Framework Preset to Flask (auto-detect) and turn off build/output overrides.
+- No `api/index.py` is necessary.
+
+Existing data collection thread and local JSON settings cannot reliably persist in Vercel functions.

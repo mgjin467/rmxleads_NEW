@@ -1,5 +1,7 @@
-"""Vercel-compatible Flask WSGI entrypoint."""
+"""Vercel Flask auto-discovery entrypoint (repository root)."""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent / "rmx_leads"))
+
+APP_DIR = Path(__file__).resolve().parent / "rmx_leads"
+sys.path.insert(0, str(APP_DIR))
 from rmx_leads.app import app
