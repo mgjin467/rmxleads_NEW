@@ -1,0 +1,20 @@
+# 사이트별 목록 페이지에서 제목/날짜/상세링크를 파싱하는 샘플 구성
+# ※ 실제 사이트 구조에 맞게 selector를 조정하세요.
+sites:
+  - name: 진천군청_고시공고
+    list_url: "https://www.jincheon.go.kr/site/jincheon/boardList.do?boardSeq=XXXX&key=XXX"
+    item_selector: "table.board > tbody > tr"
+    title_selector: "td.td-subject a"
+    date_selector: "td.td-date"
+    href_attr: "href"
+    absolute_href: true
+    include_keywords: ["개발행위", "도로", "정비", "건설", "도시계획", "신축", "공사"]
+  - name: 음성군청_고시공고
+    list_url: "https://www.eumseong.go.kr/www/selectBbsNttList.do?bbsNo=YYY&key=YYY"
+    item_selector: "table > tbody > tr"
+    title_selector: "td.tit a"
+    date_selector: "td.date"
+    href_attr: "href"
+    absolute_href: true
+    include_keywords: ["개발", "건축", "정비", "도로", "도시계획"]
+
